@@ -131,6 +131,12 @@ bool dx_world_decode(const uint8_t *rom, size_t size, uint8_t room,
 
 bool dx_world_draw(const uint8_t *rom, size_t size, const DXWorldRoom *room,
                    const uint8_t *vram, uint8_t current_tileset, uint32_t *pixels) {
+    return dx_world_draw_layers(rom,size,room,vram,current_tileset,pixels,NULL);
+}
+
+bool dx_world_draw_layers(const uint8_t *rom, size_t size, const DXWorldRoom *room,
+                          const uint8_t *vram, uint8_t current_tileset,
+                          uint32_t *pixels, uint8_t *priority) {
     if (!rom || size != 1024 * 1024 || !room || !vram || !pixels) return false;
     unsigned id = room->room;
     unsigned attribute_bank = rom[offset(0x1a, 0x6476) + id];
@@ -167,6 +173,7 @@ bool dx_world_draw(const uint8_t *rom, size_t size, const DXWorldRoom *room,
                 unsigned color = ((pattern[py * 2] >> bit) & 1) | (((pattern[py * 2 + 1] >> bit) & 1) << 1);
                 unsigned dx = bx * 16 + (q & 1) * 8 + x, dy = by * 16 + (q >> 1) * 8 + y;
                 pixels[dy * 160 + dx] = palette[(flags & 7) * 4 + color];
+                if (priority) priority[dy * 160 + dx] = (uint8_t)(color | (flags & 0x80));
             }
         }
     }

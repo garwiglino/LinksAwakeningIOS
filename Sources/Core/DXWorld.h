@@ -29,3 +29,8 @@ typedef struct {
 } DXWorldSpawns;
 bool dx_world_spawns(const uint8_t *rom, size_t size, uint8_t room,
                      uint8_t cleared, DXWorldSpawns *out);
+
+// As above, also exports raw background color and priority for native sprites.
+bool dx_world_draw_layers(const uint8_t *rom, size_t size, const DXWorldRoom *room,
+                          const uint8_t *vram, uint8_t current_tileset,
+                          uint32_t *pixels, uint8_t *priority);

@@ -70,7 +70,10 @@ int main(void) {
             memcpy(ppu->bg_palette_ram,ctx->wram + 0x1c10,64);
             for (unsigned y = 0; y < 128; y++) { ppu->ly = y; ppu_render_scanline(ppu,ctx); }
             uint32_t rendered[160 * 128];
-            assert(dx_world_draw(ctx->rom,ctx->rom_size,&native,ctx->vram,tileset,rendered));
+            uint8_t priority[160 * 128];
+            assert(dx_world_draw_layers(ctx->rom,ctx->rom_size,&native,ctx->vram,tileset,rendered,priority));
+            for (unsigned y = 0; y < 128; y++) for (unsigned x = 0; x < 160; x++)
+                assert(priority[y*160+x] == (ppu->framebuffer[y*160+x] | (ctx->vram[0x3800+(y/8)*32+x/8] & 0x80)));
             unsigned different = 0;
             for (unsigned i = 0; i < 160 * 128; i++) if (rendered[i] != ppu->rgb_framebuffer[i]) different++;
             if (different) {

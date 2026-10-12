@@ -22,7 +22,8 @@ is enabled by the caller. DXWorld functions require that verified profile.
 
 ## Verification
 
-Run `python3 Scripts/test_core.py`, then `python3 Scripts/test_world.py`.
+Run `python3 Scripts/test_core.py`, then `python3 Scripts/test_world.py`
+and `python3 Scripts/test_entities.py`.
 The latter executes original ROM routines in isolated contexts as an oracle:
 
 - 256 rooms × 8 persistent-state combinations: blocks and attributes.
@@ -49,3 +50,39 @@ need their own topology rather than overworld adjacency.
 Before enabling normal play, test combat and projectile collisions on both sides
 of the old boundary, entity lifetime and save/reload, scrolling in all directions,
 room changes, indoor entrances, palettes, cutscenes, and actual iPhone layouts.
+
+## Entity primitives — second checkpoint
+
+`DXEntity` adds native signed world-coordinate motion and single-sprite drawing.
+All 65,536 speed/fraction combinations match the French bank 3 routine at 7F3C.
+Position extends to signed 32-bit coordinates; arithmetic overflow fails without
+changing state. The original low-byte movement result remains identical.
+
+The sprite primitive accepts resolved world positions, tile IDs and flags. It
+supports CGB palettes/banks, transparency, flips, 8x8/8x16 sprites and background
+priority. `dx_world_draw_layers` now retains raw background color/priority data,
+verified against the original room tilemap and the project's PPU. RGB alone was
+insufficient to decide whether scenery should cover a sprite.
+
+10,240 comparisons against the project's existing CGB PPU cover all flag values,
+both sprite heights, background priority enabled/disabled, clipping and camera
+translation into a 512-pixel field. This is a software differential oracle,
+not physical Game Boy or iPhone validation. Invalid dimensions/capacities and
+extreme signed camera positions are also checked.
+
+These primitives are not connected to neighboring AI. They deliberately do not
+invent enemy behavior, duplicate active entities, or display spawn records as
+static actors. Multiple-entity ordering, sprite-sheet residency, special drawing
+paths and lifecycle still need integration and validation.
+
+Confirmed constraints in original logic:
+
+- Movement accumulates fractional speed before updating the 8-bit position;
+  position-sign tables have separate handling during room transitions.
+- Pair/rectangle draw helpers ultimately write 8-bit OAM coordinates; transition
+  filtering can discard an entity before the sprite reaches the PPU.
+- Arrows consult room-local events (including the dungeon eye-statue trigger),
+  collision results and a shared projectile count; extending only their X range
+  would not preserve these interactions.
+- Adjacent-room simulation must bind room-local state and collision maps to each
+  entity, while maintaining player interaction and the original respawn rules.

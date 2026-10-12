@@ -13,7 +13,7 @@ flags = ['-std=c11','-D_POSIX_C_SOURCE=200809L','-g','-O1','-ISources/Core','-IV
 if os.environ.get('DX_SANITIZE') == 'YES':
     flags += ['-fsanitize=address,undefined','-fno-omit-frame-pointer']
 out = ROOT/'build/core-tests'
-objects = [p for p in sorted(out.glob('*.o')) if p.stem not in ('core_test','DXWorld')]
+objects = [p for p in sorted(out.glob('*.o')) if p.stem not in ('core_test','DXWorld') and not p.name.endswith('.tmp.o')]
 assert objects, 'Run Scripts/test_core.py first'
 subprocess.run([cc,*flags,'Sources/Core/DXWorld.c','Tests/world_test.c',*map(str,objects),'-lm','-o',str(out/'world_test')],check=True)
 with (out/'world_test.log').open('w') as log:
