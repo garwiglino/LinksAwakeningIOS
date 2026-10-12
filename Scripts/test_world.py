@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""Differential test of native room decoding against the original ROM routine.
+Run test_core.py first to prepare reusable runtime and recompiled-code objects.
+"""
+import os
+from pathlib import Path
+import shutil
+import subprocess
+ROOT = Path(__file__).resolve().parents[1]
+os.chdir(ROOT)
+cc = os.environ.get('CC') or shutil.which('clang') or shutil.which('gcc')
+flags = ['-std=c11','-D_POSIX_C_SOURCE=200809L','-g','-O1','-ISources/Core','-IVendor/GBRuntime/include','-IDerivedSources','-pthread']
+if os.environ.get('DX_SANITIZE') == 'YES':
+    flags += ['-fsanitize=address,undefined','-fno-omit-frame-pointer']
+out = ROOT/'build/core-tests'
+objects = [p for p in sorted(out.glob('*.o')) if p.stem not in ('core_test','DXWorld')]
+assert objects, 'Run Scripts/test_core.py first'
+subprocess.run([cc,*flags,'Sources/Core/DXWorld.c','Tests/world_test.c',*map(str,objects),'-lm','-o',str(out/'world_test')],check=True)
+with (out/'world_test.log').open('w') as log:
+    result = subprocess.run([str(out/'world_test')],stdout=log,stderr=subprocess.PIPE,text=True,timeout=180)
+print(result.stderr)
+result.check_returncode()

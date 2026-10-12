@@ -1,4 +1,5 @@
 #include "DXCore.h"
+#include "DXWide.h"
 #include "gbrt.h"
 #include "ppu.h"
 #include "audio.h"
@@ -19,6 +20,9 @@ static char directory[4096], error_text[256];
 static pthread_mutex_t frame_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t frame[160 * 144];
 static bool frame_available;
+static uint32_t video[DX_VIDEO_MAX_WIDTH * DX_VIDEO_HEIGHT];
+static unsigned video_width = 160;
+static _Atomic unsigned requested_width = 160;
 static bool invalid_battery;
 enum { AUDIO_CAPACITY = 8192 };
 static int16_t audio_samples[AUDIO_CAPACITY][2];
@@ -96,10 +100,34 @@ void dx_audio_clear(void) {
     atomic_store(&audio_read_index, 0);
     atomic_store(&audio_write_index, 0);
 }
+bool dx_wide_supported(void) {
+    return !strcmp(DX_ROM_SHA256, "211a1d1559dc2684d63d87f62a6b1e9109201a6383b4004e9dd5e18ee926ee83");
+}
+void dx_request_video_width(unsigned width) {
+    atomic_store(&requested_width, width > 160 && width <= DX_VIDEO_MAX_WIDTH ? width : 160);
+}
+bool dx_copy_video(uint32_t *pixels, size_t count, unsigned *width) {
+    if (!pixels || !width || count < DX_VIDEO_MAX_WIDTH * DX_VIDEO_HEIGHT) return false;
+    pthread_mutex_lock(&frame_lock);
+    bool available = frame_available;
+    if (available) {
+        *width = video_width;
+        memcpy(pixels, video, video_width * DX_VIDEO_HEIGHT * sizeof *video);
+    }
+    pthread_mutex_unlock(&frame_lock);
+    return available;
+}
 static void publish_frame(void) {
     const uint32_t *pixels = gb_get_framebuffer(game);
     if (!pixels) return;
+    // Compose on the engine queue, from one coherent frame. The UI reads only
+    // the published copy; it never touches live emulated memory.
+    static uint32_t composed[DX_VIDEO_MAX_WIDTH * DX_VIDEO_HEIGHT];
+    unsigned width = atomic_load(&requested_width);
+    bool wide = dx_wide_supported() && dx_wide_compose(game, pixels, width, composed);
     pthread_mutex_lock(&frame_lock);
+    video_width = wide ? width : 160;
+    memcpy(video, wide ? composed : pixels, video_width * DX_VIDEO_HEIGHT * sizeof *video);
     memcpy(frame, pixels, sizeof frame);
     frame_available = true;
     pthread_mutex_unlock(&frame_lock);
