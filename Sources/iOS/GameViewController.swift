@@ -63,7 +63,8 @@ final class GameViewController: UIViewController {
         let hideControls = controller?.connected == true && UserDefaults.standard.bool(forKey: "hideTouchWithController")
         controls.isHidden = hideControls
         controls.frame = view.bounds
-        if hideControls || landscape { metal.frame = safe }
+        if landscape && renderer?.wideScenery == true { metal.frame = view.bounds }
+        else if hideControls || landscape { metal.frame = safe }
         else {
             // Portrait keeps the game clear of fingers; landscape uses side space.
             let controlHeight = min(260, safe.height * 0.43)
@@ -173,8 +174,15 @@ final class GameViewController: UIViewController {
 
 final class SettingsController: UITableViewController {
     var onDone: (() -> Void)?
-    private let rows = [("Pixels entiers", "integerScaling"), ("Inverser A/B sur manette", "swapControllerAB"),
+    private let rows: [(String, String)] = {
+        var result: [(String, String)] = []
+#if DEBUG
+        if dx_wide_supported() { result.append(("Prototype décor large · sans entités voisines", "wideScenery")) }
+#endif
+        result += [("Pixels entiers", "integerScaling"), ("Inverser A/B sur manette", "swapControllerAB"),
                         ("Masquer le tactile avec une manette", "hideTouchWithController"), ("Désactiver les vibrations", "disableHaptics")]
+        return result
+    }()
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Réglages"

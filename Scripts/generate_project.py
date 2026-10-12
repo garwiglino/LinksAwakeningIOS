@@ -23,7 +23,7 @@ source_paths = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "Sources")
 source_paths += sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "Vendor/GBRuntime/src").glob("*.c"))
 generated = [f"DerivedSources/rom_part_{i:02d}.c" for i in range(32)] + ["DerivedSources/rom_rom.c"]
 source_paths += generated
-headers = ["DerivedSources/rom.h", "DerivedSources/rom_functions.h", "DerivedSources/GameIdentity.h", "Sources/Core/DXCore.h", "Sources/iOS/BridgingHeader.h"]
+headers = ["DerivedSources/rom.h", "DerivedSources/rom_functions.h", "DerivedSources/GameIdentity.h", *[p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "Sources/Core").glob("*.h"))], "Sources/iOS/BridgingHeader.h"]
 extra = headers + ["Resources/Info.plist", "Resources/PrivacyInfo.xcprivacy", "Config/Base.xcconfig", "README.md"]
 refs = {}
 for path in source_paths + extra:
