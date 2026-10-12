@@ -1,0 +1,13 @@
+/build/
+/DerivedSources/*
+!/DerivedSources/README.md
+/LocalConfig.xcconfig
+*.xcuserstate
+xcuserdata/
+__pycache__/
+*.gb
+*.gbc
+*.zip
+*.sav
+*.state
+.DS_Store
