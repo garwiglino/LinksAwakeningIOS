@@ -3,7 +3,8 @@ import MetalKit
 final class PixelRenderer: NSObject, MTKViewDelegate {
     private let commandQueue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
-    private let texture: MTLTexture
+    private let textures: [MTLTexture]
+    private var textureIndex = 0
     private var pixels = [UInt32](repeating: 0xff000000, count: 160 * 144)
     private let slots = DispatchSemaphore(value: 3)
     var integerScaling = UserDefaults.standard.bool(forKey: "integerScaling")
@@ -26,10 +27,11 @@ final class PixelRenderer: NSObject, MTKViewDelegate {
         let tex = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 160, height: 144, mipmapped: false)
         tex.usage = .shaderRead
         tex.storageMode = .shared
-        guard let image = device.makeTexture(descriptor: tex) else {
+        let images = (0..<3).compactMap { _ in device.makeTexture(descriptor: tex) }
+        guard images.count == 3 else {
             throw NSError(domain: "DXMetal", code: 2, userInfo: [NSLocalizedDescriptionKey: "Texture vidéo indisponible."])
         }
-        texture = image
+        textures = images
         super.init()
         view.device = device
         view.colorPixelFormat = .bgra8Unorm
@@ -45,12 +47,9 @@ final class PixelRenderer: NSObject, MTKViewDelegate {
         guard let drawable = view.currentDrawable, let pass = view.currentRenderPassDescriptor,
               let buffer = commandQueue.makeCommandBuffer() else { slots.signal(); return }
         pixels.withUnsafeMutableBufferPointer { p in _ = dx_copy_frame(p.baseAddress, p.count) }
-        // Each submitted command uses its own texture, so CPU uploads never race
-        // GPU sampling on the preceding frame.
-        guard let image = view.device?.makeTexture(descriptor: {
-            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 160, height: 144, mipmapped: false)
-            d.storageMode = .shared; d.usage = .shaderRead; return d
-        }()) else { slots.signal(); return }
+        // One ordered command queue and three bounded in-flight frames keep
+        // uploads away from textures still sampled by the GPU.
+        let image = textures[textureIndex]
         pixels.withUnsafeBytes { data in
             image.replace(region: MTLRegionMake2D(0, 0, 160, 144), mipmapLevel: 0,
                           withBytes: data.baseAddress!, bytesPerRow: 160 * 4)
@@ -68,6 +67,7 @@ final class PixelRenderer: NSObject, MTKViewDelegate {
         encoder.endEncoding()
         buffer.present(drawable)
         buffer.addCompletedHandler { [slots] _ in slots.signal() }
+        textureIndex = (textureIndex + 1) % textures.count
         buffer.commit()
     }
 }

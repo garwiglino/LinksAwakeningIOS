@@ -1,0 +1,54 @@
+name: iOS build and core checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare synthetic ROM
+        run: |
+          mkdir -p build
+          python3 Tests/make_fixture.py build/fixture.gbc
+          python3 Scripts/prepare_rom.py build/fixture.gbc --fixture
+      - name: Memory and state checks
+        env:
+          DX_SANITIZE: YES
+        run: python3 Scripts/test_core.py
+  xcode:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DX_ALLOW_FIXTURE: YES
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare repository ROM, or synthetic fixture if absent
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+          if not list(Path('.').glob('*.gbc')):
+              Path('build').mkdir(exist_ok=True)
+              subprocess.run([sys.executable,'Tests/make_fixture.py','build/fixture.gbc'],check=True)
+              subprocess.run([sys.executable,'Scripts/prepare_rom.py','build/fixture.gbc','--fixture'],check=True)
+          subprocess.run([sys.executable,'Scripts/ensure_generated.py'],check=True)
+          PY
+      - name: Validate project and plist files
+        run: |
+          plutil -lint LinksAwakeningIOS.xcodeproj/project.pbxproj Resources/Info.plist Resources/PrivacyInfo.xcprivacy
+          xcodebuild -list -project LinksAwakeningIOS.xcodeproj
+      - name: Debug simulator build
+        run: xcodebuild -quiet -project LinksAwakeningIOS.xcodeproj -scheme LinksAwakeningDX -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/xcode-sim -jobs 4 CODE_SIGNING_ALLOWED=NO DX_ALLOW_FIXTURE=YES build
+      - name: Release iPhone and iPad build
+        run: xcodebuild -quiet -project LinksAwakeningIOS.xcodeproj -scheme LinksAwakeningDX -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/xcode-device -jobs 4 CODE_SIGNING_ALLOWED=NO DX_ALLOW_FIXTURE=YES build
+      - name: Launch in simulator
+        run: python3 Scripts/simulator_smoke.py build/xcode-sim/Build/Products/Debug-iphonesimulator/LinksAwakeningDX.app

@@ -19,6 +19,7 @@ static char directory[4096], error_text[256];
 static pthread_mutex_t frame_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t frame[160 * 144];
 static bool frame_available;
+static bool invalid_battery;
 enum { AUDIO_CAPACITY = 8192 };
 static int16_t audio_samples[AUDIO_CAPACITY][2];
 static _Atomic uint32_t audio_read_index, audio_write_index;
@@ -51,6 +52,7 @@ static bool atomic_write(const char *path, const void *data, size_t size) {
 }
 static bool save_ram(GBContext *ctx, const char *name, const void *data, size_t size) {
     (void)ctx; (void)name;
+    if (invalid_battery) return fail("Sauvegarde cartouche invalide : fichier conservé.");
     char path[4200];
     return path_for(path, sizeof path, "sav") && atomic_write(path, data, size);
 }
@@ -65,7 +67,7 @@ static bool load_ram(GBContext *ctx, const char *name, void *data, size_t size) 
     bool ok = fread(copy, 1, size, f) == size && fgetc(f) == EOF;
     fclose(f);
     if (ok) memcpy(data, copy, size);
-    else fail("Sauvegarde cartouche invalide : fichier conservé.");
+    else { invalid_battery = true; fail("Sauvegarde cartouche invalide : fichier conservé."); }
     free(copy);
     return ok;
 }
@@ -113,6 +115,7 @@ bool dx_copy_frame(uint32_t *pixels, size_t count) {
 bool dx_create(const char *save_directory) {
     if (game) return fail("Le moteur est déjà lancé.");
     error_text[0] = 0;
+    invalid_battery = false;
     if (!save_directory || strlen(save_directory) >= sizeof directory)
         return fail("Dossier de sauvegarde invalide.");
     strcpy(directory, save_directory);
@@ -128,6 +131,10 @@ bool dx_create(const char *save_directory) {
     callbacks.load_battery_ram = load_ram;
     gb_set_platform_callbacks(game, &callbacks);
     rom_init(game);
+    if (invalid_battery) {
+        dx_destroy();
+        return fail("Sauvegarde cartouche invalide. Restaurez une copie valide du fichier .sav.");
+    }
     if (!game->rom || game->rom_size != DX_ROM_SIZE) {
         dx_destroy();
         return fail("Le chargement du jeu recompilé a échoué.");
