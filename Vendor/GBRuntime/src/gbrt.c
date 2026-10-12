@@ -1334,7 +1334,8 @@ void gb_tick(GBContext* ctx, uint32_t cycles) {
 
     /* Yield even while LCD is disabled: UIKit must remain responsive during
      * boot/VRAM updates. Do not invent a VBlank interrupt for this host slice. */
-    if (!(ctx->io[0x40] & 0x80) && ctx->frame_cycles >= ((ctx->io[0x4D] & 0x80) ? 140448u : 70224u))
+    if (ctx->ppu && !(((GBPPU*)ctx->ppu)->lcdc & LCDC_LCD_ENABLE) &&
+        ctx->frame_cycles >= ((ctx->io[0x4D] & 0x80) ? 140448u : 70224u))
         ctx->frame_done = 1;
     if (ctx->frame_done || (ctx->ime && (ctx->io[0x0F] & ctx->io[0x80] & 0x1F))) ctx->stopped = 1;
     /* CGB double speed doubles CPU cycles, not the APU oscillator. */

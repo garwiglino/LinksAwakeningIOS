@@ -1,5 +1,6 @@
 #include "DXCore.h"
 #include "GameIdentity.h"
+#include "gbrt.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,6 +10,26 @@
 #include <unistd.h>
 
 static uint32_t pixels[160 * 144];
+static unsigned samples;
+static void count_sample(GBContext *ctx, int16_t l, int16_t r) {
+    (void)ctx; (void)l; (void)r; samples++;
+}
+static void timing_check(void) {
+    for (int speed = 1; speed <= 2; speed++) {
+        GBConfig config = {.model = GB_MODEL_CGB, .enable_audio = true};
+        GBContext *ctx = gb_context_create(&config); assert(ctx);
+        GBPlatformCallbacks callbacks = {.on_audio_sample = count_sample};
+        gb_set_platform_callbacks(ctx, &callbacks);
+        gb_write8(ctx, 0xff40, 0); // LCD off still needs a bounded host slice
+        ctx->io[0x4d] = speed == 2 ? 0x80 : 0;
+        samples = 0;
+        gb_reset_frame(ctx);
+        for (unsigned t = 0; t < 4194304; t += 4) gb_tick(ctx, 4 * speed);
+        assert(samples == 44100);
+        assert(ctx->frame_done);
+        gb_context_destroy(ctx);
+    }
+}
 static unsigned char *read_file(const char *path, size_t *size) {
     FILE *f = fopen(path, "rb"); assert(f);
     assert(fseek(f, 0, SEEK_END) == 0);
@@ -31,12 +52,16 @@ static void step(int frames, uint8_t buttons) {
 }
 int main(int argc, char **argv) {
     assert(argc == 2);
+    timing_check();
     assert(dx_create(argv[1]));
     assert(!dx_create(argv[1])); // never create two owners of global runtime
     assert(!dx_copy_frame(pixels, 12));
     step(600, 0);
     step(1, 8); // Start
     step(120, 0);
+    step(180, 0);
+    step(3, 8); // Start from the title screen into the save-selection menu
+    step(60, 0);
     assert(dx_copy_frame(pixels, 160 * 144));
     char image[4096]; snprintf(image, sizeof image, "%s/frame.ppm", argv[1]);
     FILE *f = fopen(image, "wb"); assert(f);
@@ -67,6 +92,15 @@ int main(int argc, char **argv) {
     free(saved); free(expected); free(actual); free(intact);
     dx_destroy();
     assert(dx_create(argv[1])); assert(dx_load_state()); step(10, 0); dx_destroy();
-    puts("PASS: boot, frames/audio, deterministic snapshot, corrupt/truncated rejection, restart");
+    if (!DX_IS_FIXTURE) {
+        char battery[4096]; snprintf(battery, sizeof battery, "%s/%s.sav", argv[1], dx_rom_identity());
+        size_t size; unsigned char *valid = read_file(battery, &size);
+        write_file(battery, valid, 1);
+        assert(!dx_create(argv[1]));
+        size_t unchanged; unsigned char *bad = read_file(battery, &unchanged);
+        assert(unchanged == 1 && bad[0] == valid[0]);
+        write_file(battery, valid, size); free(valid); free(bad);
+    }
+    puts("PASS: audio cadence at both CPU speeds, boot/input, deterministic snapshot, corruption rejection, restart");
     return 0;
 }
