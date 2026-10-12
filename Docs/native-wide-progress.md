@@ -86,3 +86,48 @@ Confirmed constraints in original logic:
   would not preserve these interactions.
 - Adjacent-room simulation must bind room-local state and collision maps to each
   entity, while maintaining player interaction and the original respawn rules.
+
+## Collision and roaming decision checkpoint
+
+`DXCollision` ports the French Rev 1 `ApplyEntityCollisionWithObject` routine
+(bank 3, 7AD1), including fish/water-tektite restrictions, fine collision shapes,
+open doors, ledges, switch blocks, hookshot attachment, the French hookshot
+immunity fix, per-direction flags and entity-specific bypasses. It deliberately
+separates contact classification from ground effects and damage.
+
+Validation: 589,824 calls to the original routine, spanning all object IDs,
+three physics-table groups, twelve entity types and 64 state/geometry profiles.
+No mismatches in blocking, collision flags, ledge state, hookshot state/unloading,
+Link immunity and sampled coordinates. This is structured coverage, not an
+exhaustive proof of all possible gameplay state combinations.
+
+Movement and wall resolution are connected in `dx_collision_move_walls`, retaining
+fractional movement and the original X-before-Y response. 4,096 integrated cases
+match original movement plus the wall phase. The collision map lookup uses world
+coordinates: 40,960 samples across adjacent rooms, an actual wall across the old
+screen edge, passage into an empty neighbor, and atomic rollback when neighboring
+geometry is unavailable are checked. No horizontal island wrapping is permitted.
+Ground effects (drowning, falling, conveyors, grass and splashes) remain separate
+and are not implemented by this wall-motion function.
+
+`DXRoaming` ports the common post-combat movement/firing decision for Octoroks,
+Moblins and Iron Masks. 24,576 original decision traces agree on state, cooldown,
+direction, velocities, collision flags, RNG consumption and delegated action.
+The tests cover movement, ground checks, arrow requests, rock requests and waits.
+Target direction uses world distances without the original 8-bit aliasing.
+The RNG remains an explicit input owned by the scheduler. The active state
+copy (hActiveEntityState) is kept distinct from the stored entity state; tests
+also cover disagreement between them. An original quirk is
+preserved: the collision-triggered pause writes through the collision-table
+pointer, while the timer-triggered pause writes through the timer pointer.
+
+These modules are not a complete live enemy handler. Timers, damage, recoil,
+projectile allocation/execution, ground effects, animation, room activation and
+sprite-sheet residency still require integration. Neither collisions nor this
+three-family decision phase mean all neighboring entities work in gameplay.
+The public widescreen setting remains disabled outside Debug.
+
+Run `Scripts/test_collisions.py` and `Scripts/test_roaming.py` after the core
+build; CI runs both. The preceding published checkpoint (0d21a003) passed Debug
+simulator compilation, Release device compilation and simulator launch on GitHub.
+This does not constitute a physical iPhone gameplay test.
