@@ -229,3 +229,36 @@ combat works in the app. The widescreen switch remains a Debug scenery prototype
 The preceding published revision (b39a8218) passed the Linux checks, Debug
 simulator build, Release device build and simulator launch on GitHub. This
 does not replace gameplay validation on an actual iPhone.
+
+## Original-memory / native-actor boundary
+
+`DXActorBridge` transfers all modeled entity-owned fields between the original
+sixteen-slot memory layout and native world-coordinate records. X/Y are signed
+16-bit values (low-byte and sign tables), not unsigned 8-bit positions. This is
+essential for entities prepared on the other side of a room transition. Falling
+anchors have only 8-bit storage in the original engine and are checked separately.
+
+The caller supplies the coordinate origin at a synchronous engine boundary.
+The adapter deliberately does **not** infer that origin from `hMapRoom` during
+scrolling, or use the entity's home room as its current coordinate origin. It
+does not invent persistent identities from reusable entity-slot indices.
+
+Commit checks the captured roster, room/transition/clock and modeled shared
+context before writing. Every slot is validated first; stale records, unsupported
+derived-field edits, wrong WRAM banking and unrepresentable positions cause no
+writes. Shared Link state, CPU state and room-clear masks are never overwritten.
+The temporary no-background-collision flag remains the handler scheduler's job.
+
+Local checks cover 1,048,576 signed-position slot round-trips, positive changes
+to all mapped fields, preservation of unrelated memory, adjacent-room coordinate
+equivalence, and rejection without partial writes. A further 1,024 timer steps
+pass through import, native execution and export, then compare with the original
+ROM routine. Run `Scripts/test_actor_bridge.py` after the core build; CI includes
+the check with the real ROM and with sanitizers on the synthetic fixture.
+
+**Integration limit:** this adapter is not yet called by the live entity
+dispatcher. No additional enemies are simulated or rendered by this change.
+It must be invoked at an exact handler boundary, not once after `gb_run_frame`
+(which would advance actors twice or commit stale state). The playable-wide
+scheduler, enemy combat phases and room ownership remain unfinished. This is
+not a completed widescreen mode.

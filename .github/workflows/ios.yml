@@ -22,7 +22,9 @@ jobs:
       - name: Memory and state checks
         env:
           DX_SANITIZE: YES
-        run: python3 Scripts/test_core.py
+        run: |
+          python3 Scripts/test_core.py
+          python3 Scripts/test_actor_bridge.py
   native-world:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -53,6 +55,7 @@ jobs:
           python3 Scripts/test_physics.py
           python3 Scripts/test_actors.py
           python3 Scripts/test_projectiles.py
+          python3 Scripts/test_actor_bridge.py
   xcode:
     runs-on: macos-15
     timeout-minutes: 45
