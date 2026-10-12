@@ -172,3 +172,60 @@ scheduler. Shared player damage, enemy lifecycle, projectile execution, entity
 sprite residency, transition ownership and room-local events still need to be
 implemented and tested before enabling a playable widescreen mode. No claim of
 fully functional widescreen follows from this checkpoint.
+
+
+## Native actor execution and enemy projectile checkpoint
+
+`DXActors` introduces a native actor record and a sixteen-slot roster. Generic
+configuration preserves the original selective reset: persistent coordinates and
+other untouched fields are retained, while flags, health and hitboxes come from
+the verified ROM. It does not substitute for type-specific room initialization.
+Timers retain pause rules for dialogs, inventory, transitions, ocarina, gameplay
+mode and the dream-bed exception; flashing uses the pre-decrement timer value.
+
+The three-family roaming decision now has an executable post-combat continuation:
+movement, ground/wall reactions, animation and real arrow/rock allocation in the
+roster. Allocation searches descending slots, retains the original full-roster
+behavior, and uses world coordinates for projectile offsets. The entire turn,
+including RNG state and projectile allocation, rolls back if physics cannot
+resolve a required room. The caller still owns the pre-combat active-state copy
+and supplies frame/scanline entropy explicitly.
+
+`DXProjectiles` executes overworld Moblin arrows and Octorok rocks. Contact with
+Link precedes the interactivity gate, preserving the original order. Shield
+facing, damage buffers, invulnerability, power-up/tunic modifiers, recoil, boots
+cancellation and music restoration are modeled as shared player state. Projectile
+motion preserves the distinct projectile terrain rules, wall/shield bounce,
+spin, gravity and expiry; it must not use enemy walking collision rules. Audio
+and Moblin-alert requests are deferred outputs. Missing geometry rolls back the
+actor, player damage and effects together. Long-range contact tests no longer
+alias every 256 pixels.
+
+Original-ROM differential checks pass:
+
+- 4,016 generic actor configurations (all 251 defined IDs, sixteen initial states).
+- 32,768 timer/gameplay states.
+- 2,048 arrow/rock allocations, including occupied rosters and all directions.
+- 24,576 complete post-combat roaming continuations, including actual spawns.
+- 131,072 projectile/player contacts.
+- 65,536 projectile movement/terrain/bounce steps.
+- 8,192 combined contact, player damage, shield and terrain steps.
+
+These tests execute original routines in isolated contexts. They also verify
+cross-room projectile movement, distant-player rejection, overflow refusal, and
+atomic rollback of damage, random state and allocations. The projectile oracle
+explicitly enables the game's GBC flag, which controls torch interactions.
+Run `Scripts/test_actors.py` and `Scripts/test_projectiles.py` after the core
+build. CI runs them with the existing checks.
+
+**Not yet integrated into live play:** no neighboring actor scheduler or
+ownership handover is enabled in the app. The native continuation starts after
+recoil and enemy damage; it does not implement those earlier enemy phases.
+Other enemy AI, player weapons, drops/death/fall handlers, per-room sprite assets,
+room events, persistence of new actors and transitions still require work.
+Enemy-projectile contacts above are a tested subsystem, not a claim that all
+combat works in the app. The widescreen switch remains a Debug scenery prototype.
+
+The preceding published revision (b39a8218) passed the Linux checks, Debug
+simulator build, Release device build and simulator launch on GitHub. This
+does not replace gameplay validation on an actual iPhone.
