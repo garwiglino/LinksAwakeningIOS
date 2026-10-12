@@ -45,3 +45,10 @@ typedef struct { uint8_t horizontal_object, vertical_object; } DXWallContact;
 bool dx_collision_move_walls(const uint8_t *rom, size_t size,
                              const DXWorldRoom *const rooms[256], DXWorldBody *body,
                              int8_t speed_x, int8_t speed_y, DXWallContact *contact);
+
+// Resolve walls after movement and ground effects. Rollback coordinates are
+// the original active position copied before those phases.
+bool dx_collision_resolve_walls(const uint8_t *rom, size_t size,
+                                const DXWorldRoom *const rooms[256], DXWorldBody *body,
+                                int32_t rollback_x, int32_t rollback_y,
+                                int8_t speed_x, int8_t speed_y, DXWallContact *contact);

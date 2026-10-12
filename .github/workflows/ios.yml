@@ -49,6 +49,8 @@ jobs:
           python3 Scripts/test_entities.py
           python3 Scripts/test_collisions.py
           python3 Scripts/test_roaming.py
+          python3 Scripts/test_ground.py
+          python3 Scripts/test_physics.py
   xcode:
     runs-on: macos-15
     timeout-minutes: 45

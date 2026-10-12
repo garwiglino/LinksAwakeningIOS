@@ -95,13 +95,13 @@ pass:
     *state = result; *blocked = false; return true;
 }
 
-bool dx_collision_move_walls(const uint8_t *rom, size_t size,
+bool dx_collision_resolve_walls(const uint8_t *rom, size_t size,
                              const DXWorldRoom *const rooms[256], DXWorldBody *body,
+                             int32_t rollback_x, int32_t rollback_y,
                              int8_t speed_x, int8_t speed_y, DXWallContact *contact) {
     if (!rom || size != 1024 * 1024 || !rooms || !body || !contact || body->hitbox > 3) return false;
     DXWorldBody next = *body;
     DXWallContact hit = {0};
-    if (!dx_entity_move_axis(&next.x,speed_x) || !dx_entity_move_axis(&next.y,speed_y)) return false;
     if (next.collision.type != 0x6d) { // BowWow bypasses the wall phase.
         next.collision.collision_flags = 0;
         for (unsigned axis = 0; axis < 2; axis++) {
@@ -119,12 +119,23 @@ bool dx_collision_move_walls(const uint8_t *rom, size_t size,
                 if (axis) hit.vertical_object = point.object;
                 else hit.horizontal_object = point.object;
                 if (!next.no_bg_collision) {
-                    if (axis) next.y.position = body->y.position;
-                    else next.x.position = body->x.position;
+                    if (axis) next.y.position = rollback_y;
+                    else next.x.position = rollback_x;
                 }
             }
         }
     }
     *body = next; *contact = hit;
+    return true;
+}
+
+bool dx_collision_move_walls(const uint8_t *rom, size_t size,
+                             const DXWorldRoom *const rooms[256], DXWorldBody *body,
+                             int8_t speed_x, int8_t speed_y, DXWallContact *contact) {
+    if (!body) return false;
+    DXWorldBody next=*body;
+    if (!dx_entity_move_axis(&next.x,speed_x) || !dx_entity_move_axis(&next.y,speed_y) ||
+        !dx_collision_resolve_walls(rom,size,rooms,&next,body->x.position,body->y.position,speed_x,speed_y,contact)) return false;
+    *body=next;
     return true;
 }

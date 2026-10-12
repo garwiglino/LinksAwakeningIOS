@@ -131,3 +131,44 @@ Run `Scripts/test_collisions.py` and `Scripts/test_roaming.py` after the core
 build; CI runs both. The preceding published checkpoint (0d21a003) passed Debug
 simulator compilation, Release device compilation and simulator launch on GitHub.
 This does not constitute a physical iPhone gameplay test.
+
+
+## Ground and integrated physics checkpoint
+
+`DXGround` ports the French Rev 1 ground phase (bank 3, 7897–7A1C):
+water/grass status, drowning exceptions, splash requests, conveyor movement,
+pit/well falls, fall targets and timers, including side-scrolling velocity
+adjustment. Effects are returned as requests; allocating transient effects and
+playing their jingles remain the caller's responsibility.
+
+786,432 comparisons cover all object IDs, three physics groups, sixteen entity
+types and 64 profiles. The isolated oracle replaces only the next phase's entry
+with RET so its fallthrough can be observed; ground instructions are unchanged.
+
+`DXPhysics` integrates optional fractional movement, ground sampling at the
+moved position, ground reactions, then X-before-Y wall resolution. Wall rollback
+uses the position before the entire step, including conveyor displacement.
+All outputs, including deferred audio/visual requests, commit together only when
+the required room geometry is available. This entry point accepts overworld
+topology only; it rejects indoor and side-scrolling contexts.
+
+524,288 comparisons execute the complete original background routine without
+patching its ROM. They cover uniform and spatially mixed terrain, optional
+movement, fractional positions and four hitboxes. No mismatches were found in
+positions, fractions, terrain state, fall targets/timers, death, collision flags,
+wall contact IDs, velocities or effect requests. Additional tests cover water
+and pit reactions across the old screen boundary, and total rollback when a
+later wall lookup fails after a ground effect was prepared. Existing collision
+comparisons also pass after extracting the reusable wall-resolution phase.
+
+Run `Scripts/test_ground.py` and `Scripts/test_physics.py` after the core build;
+both are included in CI. These are software comparisons, not an iPhone gameplay
+validation. The previous published checkpoint (7eeba98) passed Debug simulator
+and Release device builds plus simulator launch.
+
+**Remaining integration:** the app still renders only neighboring scenery.
+These physics routines are not yet connected to a live neighboring-entity
+scheduler. Shared player damage, enemy lifecycle, projectile execution, entity
+sprite residency, transition ownership and room-local events still need to be
+implemented and tested before enabling a playable widescreen mode. No claim of
+fully functional widescreen follows from this checkpoint.
